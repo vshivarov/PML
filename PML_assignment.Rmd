@@ -1,0 +1,92 @@
+---
+title: "PML_assignment"
+author: "VS"
+date: "Friday, September 19, 2014"
+output: html_document
+---
+## Summary
+
+Here I provide my solution to the Coursera Practical Machine Learning Assignment.
+I provide my code and workflow for the development of a predictive model based k nearest neighbours method. Using this approach I accuracy of 98% and 95% for the training and test set respectively.
+---
+
+## Workflow with data analysis
+
+For the purpose of this assignment we assume that the two .csv files (with the training and test dataset are stored in the working directory. Let's load and explore them: 
+
+```{r}
+setwd("C:/Users/x/Desktop/Coursera/PracticalMachineLearning")
+train<-read.csv("pml-training.csv")
+test<-read.csv("pml-testing.csv")
+```
+
+As our ultimate goal is to predict the class of each of the test cases I will first select the variables to be included in the predictive model based on the data availability in the test set:
+
+```{r}
+str(test)## We see that there are many variables with missing data. Let's remove them.
+test1<-test[,!is.na(test[1,])]
+dim(test1)
+table(complete.cases(test1))#Check for cases with missing data. No such cases.
+train1<-subset(train, select=(colnames(train)%in%colnames(test1)))
+dim(train1)
+classTrain<-train[,160]
+table(complete.cases(train1))#Check for cases with missing data. No such cases.
+library(caret)
+```
+
+I will use a helper function that will determine the R class of each column in a given data frame. Below is the script for that function called "colclass":
+
+```{r}
+colClass<-function(x){
+        a=1
+        b=character()
+        while (a<ncol(x)+1){
+                b<-c(b,class(x[,a]))
+                a<-a+1
+        }
+        return (b)
+}
+```
+
+I will use the above function to select the columns only with numeric data because I want to check the performance of the model based only on these numeric variables:
+```{r}
+colclass<-colClass(test1)
+test2<-test1[,colclass=="numeric"]
+test2<-test2[,-24]
+train2<-train1[,colnames(test2)]
+```
+
+Below is the code for the two models I test based on the k nearest neighbors method. The first model uses preprocessed training data with a principal components method. The second model uses centered and scaled training data. Both methods are fine-tuned by 10 fold cross validation approach.
+
+```{r}
+model1<-train(train2, classTrain, preProcess="pca", method="knn", trControl=trainControl(method = "cv", number=10))
+model2<-train(train2, classTrain, preProcess=c("center", "scale"), method="knn", trControl=trainControl(method = "cv", number=10))
+predTrain1<-predict(model1, train2)#Here I predict the classes of the training cases based on the first model
+predTrain2<-predict(model2, train2)#Here I predict the classes of the training cases based on the second model
+```
+
+I will also demonstrate the accuracy results of each ot the 10 folds crossvalidations for the second model:
+```{r}
+model2$resample
+```
+
+As this is a class prediction problem I will assess the performance of the models using the accuracy and kappa parameters:
+
+```{r}
+conf1<-confusionMatrix(predTrain1, classTrain)
+conf2<-confusionMatrix(predTrain2, classTrain)
+conf1
+conf2
+```
+
+One can see that the performance of the two models was virtually identical reaching 98% accuracy. Let's now use each of them to predict the classes ot the 20 test cases:
+
+```{r}
+predictTest1<-predict(model1, test2)
+predictTest2<-predict(model2, test2)
+predictTest1
+predictTest2
+```
+
+We see that the two models provided identical classification for the test set. When I submitted this prediction to the Coursera site it appered that the accuracy was 19 correct predcitions of 20, i.e. the accuracy was 95%.
+
